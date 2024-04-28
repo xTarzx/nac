@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 
 #[derive(Debug, Default)]
 
-struct OpExpression {
+pub struct OpExpression {
     lhs: Option<Box<Expression>>,
     rhs: Option<Box<Expression>>,
 }
@@ -74,7 +74,7 @@ impl Expression {
 }
 
 #[derive(Debug, Default)]
-struct Group {
+pub struct Group {
     body: Vec<Expression>,
 }
 
