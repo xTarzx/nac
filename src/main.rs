@@ -1,4 +1,4 @@
-use std::io::{stdin, stdout, Write};
+use std::io::stdin;
 
 use anyhow::Result;
 
@@ -34,8 +34,6 @@ fn main() -> Result<()> {
 
         loop {
             input.clear();
-            print!("> ");
-            stdout().flush()?;
 
             stdin().read_line(&mut input)?;
             if input.starts_with("q") {

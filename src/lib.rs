@@ -14,6 +14,8 @@ pub enum Expression {
     Sub(OpExpression),
     Mul(OpExpression),
     Div(OpExpression),
+    Mod(OpExpression),
+    Pow(OpExpression),
     Group(Group),
 }
 
@@ -61,14 +63,36 @@ impl Expression {
                 let rhs = rhs.eval()?;
                 return Ok(lhs / rhs);
             }
+            Expression::Mod(OpExpression {
+                lhs: Some(lhs),
+                rhs: Some(rhs),
+            }) => {
+                let lhs = lhs.eval()?;
+                let rhs = rhs.eval()?;
+                return Ok(lhs % rhs);
+            }
+
+            Expression::Pow(OpExpression {
+                lhs: Some(lhs),
+                rhs: Some(rhs),
+            }) => {
+                let lhs = lhs.eval()?;
+                let rhs = rhs.eval()?;
+                return Ok(lhs.powf(rhs));
+            }
+
             Expression::Group(group) => {
                 group.resolve()?;
 
-                assert!(group.body.len() == 1);
+                if group.body.len() != 1 {
+                    return Err(anyhow!("unresolved expression {group:?}"));
+                }
 
                 return group.body[0].eval();
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(anyhow!("unhandled expression {self:?}"));
+            }
         }
     }
 }
@@ -81,8 +105,33 @@ pub struct Group {
 impl Group {
     fn resolve(&mut self) -> Result<()> {
         while let Some(idx) = self.body.iter().position(|e| match e {
+            Expression::Pow(params) => params.lhs.is_none() || params.lhs.is_none(),
+            _ => false,
+        }) {
+            if idx + 1 == self.body.len() {
+                return Err(anyhow!("missing right hand side"));
+            }
+            let rhs = self.body.remove(idx + 1);
+            if idx == 0 {
+                return Err(anyhow!("missing left hand side"));
+            }
+            let lhs = self.body.remove(idx - 1);
+
+            let exp = &mut self.body[idx - 1];
+
+            let params = match exp {
+                Expression::Pow(params) => params,
+                _ => unreachable!(),
+            };
+
+            params.lhs = Some(Box::new(lhs));
+            params.rhs = Some(Box::new(rhs));
+        }
+
+        while let Some(idx) = self.body.iter().position(|e| match e {
             Expression::Mul(params) => params.lhs.is_none() || params.lhs.is_none(),
             Expression::Div(params) => params.lhs.is_none() || params.lhs.is_none(),
+            Expression::Mod(params) => params.lhs.is_none() || params.lhs.is_none(),
             _ => false,
         }) {
             if idx + 1 == self.body.len() {
@@ -99,6 +148,7 @@ impl Group {
             let params = match exp {
                 Expression::Mul(params) => params,
                 Expression::Div(params) => params,
+                Expression::Mod(params) => params,
                 _ => unreachable!(),
             };
 
@@ -170,6 +220,12 @@ fn tokenize(input: &str) -> Result<Vec<Expression>> {
         } else if char == '/' {
             let ops = OpExpression::default();
             exps.push(Expression::Div(ops));
+        } else if char == '%' {
+            let ops = OpExpression::default();
+            exps.push(Expression::Mod(ops));
+        } else if char == '^' {
+            let ops = OpExpression::default();
+            exps.push(Expression::Pow(ops));
         } else if char == '(' {
             let mut sc = 0;
             let mut buf = String::new();
