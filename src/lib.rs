@@ -103,30 +103,42 @@ pub struct Group {
 }
 
 impl Group {
-    fn parse_params(&mut self, exp_idx: usize) -> Result<()> {
+    fn parse_params(&mut self, mut exp_idx: usize) -> Result<()> {
         if exp_idx + 1 == self.body.len() {
             return Err(anyhow!("missing right hand side"));
         }
+
         let rhs = self.body.remove(exp_idx + 1);
+
+        let lhs: Option<Expression>;
         if exp_idx == 0 {
-            return Err(anyhow!("missing left hand side"));
-        }
-        let lhs = self.body.remove(exp_idx - 1);
-
-        let exp = &mut self.body[exp_idx - 1];
-
-        let params = match exp {
-            Expression::Add(params)
-            | Expression::Sub(params)
-            | Expression::Mul(params)
-            | Expression::Div(params)
-            | Expression::Mod(params)
-            | Expression::Pow(params) => params,
-            _ => unreachable!(),
+            lhs = None;
+        } else {
+            exp_idx -= 1;
+            lhs = Some(self.body.remove(exp_idx));
         };
 
-        params.lhs = Some(Box::new(lhs));
-        params.rhs = Some(Box::new(rhs));
+        let exp = &mut self.body[exp_idx];
+
+        match exp {
+            Expression::Add(params) | Expression::Sub(params) => {
+                params.lhs = Some(Box::new(lhs.unwrap_or(Expression::Unit("0".to_string()))));
+                params.rhs = Some(Box::new(rhs));
+            }
+            Expression::Mul(params)
+            | Expression::Div(params)
+            | Expression::Mod(params)
+            | Expression::Pow(params) => {
+                if lhs.is_none() {
+                    return Err(anyhow!("missing left hand side"));
+                }
+
+                let lhs = lhs.unwrap();
+                params.lhs = Some(Box::new(lhs));
+                params.rhs = Some(Box::new(rhs));
+            }
+            _ => return Err(anyhow!("unexpected expression {exp:?}")),
+        }
 
         Ok(())
     }
