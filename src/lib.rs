@@ -16,6 +16,7 @@ pub enum Expression {
     Div(OpParams),
     Mod(OpParams),
     Pow(OpParams),
+    Root(OpParams),
     Group(Group),
 }
 
@@ -80,6 +81,14 @@ impl Expression {
                 let rhs = rhs.eval()?;
                 return Ok(lhs.powf(rhs));
             }
+            Expression::Root(OpParams {
+                lhs: Some(lhs),
+                rhs: Some(rhs),
+            }) => {
+                let lhs = lhs.eval()?;
+                let rhs = rhs.eval()?;
+                return Ok(rhs.powf(1.0 / lhs));
+            }
 
             Expression::Group(group) => {
                 group.resolve()?;
@@ -128,7 +137,8 @@ impl Group {
             Expression::Mul(params)
             | Expression::Div(params)
             | Expression::Mod(params)
-            | Expression::Pow(params) => {
+            | Expression::Pow(params)
+            | Expression::Root(params) => {
                 if lhs.is_none() {
                     return Err(anyhow!("missing left hand side"));
                 }
@@ -146,6 +156,7 @@ impl Group {
     fn resolve(&mut self) -> Result<()> {
         while let Some(idx) = self.body.iter().position(|e| match e {
             Expression::Pow(params) => params.lhs.is_none() || params.lhs.is_none(),
+            Expression::Root(params) => params.lhs.is_none() || params.lhs.is_none(),
             _ => false,
         }) {
             self.parse_params(idx)?;
@@ -212,6 +223,9 @@ fn tokenize(input: &str) -> Result<Vec<Expression>> {
         } else if char == '^' {
             let ops = OpParams::default();
             exps.push(Expression::Pow(ops));
+        } else if char == '~' {
+            let ops = OpParams::default();
+            exps.push(Expression::Root(ops));
         } else if char == '(' {
             let mut sc = 0;
             let mut buf = String::new();
