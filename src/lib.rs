@@ -197,11 +197,15 @@ fn tokenize(input: &str) -> Result<Vec<Expression>> {
             buf.push(char);
 
             while let Some(nxt) = chars.peek() {
-                if nxt.is_digit(10) {
+                if nxt.is_digit(10) || nxt == &'.' {
                     buf.push(chars.next().unwrap())
                 } else {
                     break;
                 }
+            }
+
+            if buf.ends_with('.') {
+                buf.push('0');
             }
 
             exps.push(Expression::Unit(buf));
