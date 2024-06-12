@@ -209,6 +209,19 @@ fn tokenize(input: &str) -> Result<Vec<Expression>> {
             }
 
             exps.push(Expression::Unit(buf));
+        } else if char == '#' {
+            let mut buf = String::new();
+
+            while let Some(nxt) = chars.peek() {
+                if nxt.is_digit(16) {
+                    buf.push(chars.next().unwrap())
+                } else {
+                    break;
+                }
+            }
+
+            let val = u64::from_str_radix(buf.as_str(), 16)?;
+            exps.push(Expression::Unit(val.to_string()));
         } else if char == '+' {
             let ops = OpParams::default();
             exps.push(Expression::Add(ops));
