@@ -26,6 +26,19 @@ impl Expression {
         Ok(Expression::Group(Group { body }))
     }
 
+    pub fn root_with_prev(input: &str, prev: f64) -> Result<Expression> {
+        let mut body = tokenize(input)?;
+
+        match &body[0] {
+            Expression::Add(_) | Expression::Sub(_) | Expression::Mul(_) | Expression::Div(_) => {
+                body.insert(0, Expression::Unit(prev.to_string()));
+            }
+            _ => {}
+        }
+
+        Ok(Expression::Group(Group { body }))
+    }
+
     pub fn eval(&mut self) -> Result<f64> {
         match self {
             Expression::Unit(val) => {
