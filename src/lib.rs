@@ -17,6 +17,7 @@ pub enum Expression {
     Mod(OpParams),
     Pow(OpParams),
     Root(OpParams),
+    Func(String, Group),
     Group(Group),
 }
 
@@ -103,6 +104,20 @@ impl Expression {
                 return Ok(rhs.powf(1.0 / lhs));
             }
 
+            Expression::Func(identifier, group) => {
+                group.resolve()?;
+
+                if group.body.len() != 1 {
+                    return Err(anyhow!("unresolved expression {group:?}"));
+                }
+
+                let val = group.body[0].eval()?;
+                match identifier.as_str() {
+                    "cos" => Ok(val.cos()),
+                    "sin" => Ok(val.sin()),
+                    _ => Err(anyhow!("unknown identifier {identifier}")),
+                }
+            }
             Expression::Group(group) => {
                 group.resolve()?;
 
@@ -129,9 +144,7 @@ impl Group {
         if exp_idx + 1 == self.body.len() {
             return Err(anyhow!("missing right hand side"));
         }
-
         let rhs = self.body.remove(exp_idx + 1);
-
         let lhs: Option<Expression>;
         if exp_idx == 0 {
             lhs = None;
@@ -139,7 +152,6 @@ impl Group {
             exp_idx -= 1;
             lhs = Some(self.body.remove(exp_idx));
         };
-
         let exp = &mut self.body[exp_idx];
 
         match exp {
@@ -191,6 +203,7 @@ impl Group {
         }) {
             self.parse_params(idx)?;
         }
+
         Ok(())
     }
 }
@@ -286,6 +299,57 @@ fn tokenize(input: &str) -> Result<Vec<Expression>> {
             let body = tokenize(&buf)?;
 
             exps.push(Expression::Group(Group { body }));
+        } else if char.is_alphabetic() {
+            let mut buf = String::new();
+            buf.push(char);
+            while let Some(next) = chars.peek() {
+                if next.is_alphabetic() {
+                    buf.push(chars.next().expect("already checked"));
+                } else {
+                    break;
+                };
+            }
+
+            let identifier = buf.clone();
+            let mut next;
+
+            'trim: loop {
+                next = chars.next();
+                if next.is_some() && !next.unwrap().is_whitespace() {
+                    break 'trim;
+                }
+            }
+
+            if next.is_none() || next.unwrap() != '(' {
+                return Err(anyhow!("expected ("));
+            };
+
+            buf.clear();
+            let mut sc = 0;
+
+            'parse_paren: loop {
+                let c = chars.next();
+                if c.is_none() {
+                    return Err(anyhow!("someone forgot a )"));
+                };
+
+                let c = c.unwrap();
+
+                if c == ')' {
+                    if sc == 0 {
+                        break 'parse_paren;
+                    } else {
+                        sc -= 1
+                    };
+                }
+                if c == '(' {
+                    sc += 1;
+                }
+                buf.push(c);
+            }
+
+            let body = tokenize(&buf)?;
+            exps.push(Expression::Func(identifier, Group { body }));
         } else if char == ')' {
             return Err(anyhow!("sneaky {char}"));
         } else {
